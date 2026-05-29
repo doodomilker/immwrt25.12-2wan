@@ -148,7 +148,7 @@ clone_all() {
 
 clone_source_code() {
   REPO_URL="${REPO_URL:-https://github.com/immortalwrt/immortalwrt}"
-  REPO_BRANCH="${REPO_BRANCH:-v25.12.0}"
+  REPO_BRANCH="${REPO_BRANCH:-openwrt-25.12}"
   echo "REPO_URL=$REPO_URL" >> "$GITHUB_ENV"
   echo "REPO_BRANCH=$REPO_BRANCH" >> "$GITHUB_ENV"
   cd /workdir
@@ -190,11 +190,13 @@ add_custom_packages() {
   mkdir -p "$destination_dir"
 
   # 基础插件
-  clone_dir openwrt-23.05 https://github.com/coolsnowwolf/luci luci-app-adguardhome
+  # adguardhome: lean 23.05 与 25.12 跨度太大，改用 sbwml 25.12 兼容版
+  clone_all https://github.com/sbwml/luci-app-adguardhome
   clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
   clone_all https://github.com/sbwml/luci-app-alist
   clone_all https://github.com/sbwml/luci-app-mosdns
-  git_clone https://github.com/sbwml/packages_lang_golang golang
+  # golang: sbwml 替换 toolchain 与 25.12 feeds 错位风险，首编先注释，验证后再开
+  # git_clone https://github.com/sbwml/packages_lang_golang golang
   clone_all https://github.com/linkease/istore-ui
   clone_all https://github.com/linkease/istore luci
   clone_all https://github.com/brvphoenix/luci-app-wrtbwmon
@@ -218,6 +220,8 @@ add_custom_packages() {
   git_clone https://github.com/eamonxg/luci-app-aurora-config
   git_clone https://github.com/sirpdboy/luci-theme-kucat
   git_clone https://github.com/sirpdboy/luci-app-kucat-config
+  # luci-theme-design: immortalwrt feed 25.12 没有此主题，需要单独 clone（haiibo 原版漏写）
+  clone_all https://github.com/0x676e67/luci-theme-design
 
   # 晶晨宝盒，保留 haiibo 原来的包源；x86 配置未启用，不影响固件菜单
   clone_all https://github.com/ophub/luci-app-amlogic
@@ -330,7 +334,7 @@ show_build_info() {
   echo -e "$(color cy " 当前编译信息")"
   echo "========================================"
   echo " 固件源码: $(color cc "${SOURCE_REPO:-immortalwrt}")"
-  echo " 源码分支: $(color cc "${REPO_BRANCH:-v25.12.0}")"
+  echo " 源码分支: $(color cc "${REPO_BRANCH:-openwrt-25.12}")"
   echo " 目标设备: $(color cc "${DEVICE_TARGET:-x86-64}")"
   echo " 内核版本: $(color cc "${KERNEL_VERSION:-unknown}")"
   echo " 编译架构: $(color cc "${CPU_ARCH:-unknown}")"
