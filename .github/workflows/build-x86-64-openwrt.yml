@@ -16,9 +16,9 @@ on:
         type: choice
         options: ['x86-64']
       repo_branch:
-        description: 'ImmortalWrt 源码版本：默认精确 v25.12.0，可改 openwrt-25.12'
+        description: 'ImmortalWrt 源码版本：默认 openwrt-25.12 维护分支，可改 v25.12.0 锁版本'
         required: true
-        default: 'v25.12.0'
+        default: 'openwrt-25.12'
         type: string
       ip_address:
         description: '设置默认 IP 地址'
