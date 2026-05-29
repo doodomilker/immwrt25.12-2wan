@@ -149,6 +149,7 @@ clone_all() {
 clone_source_code() {
   REPO_URL="${REPO_URL:-https://github.com/immortalwrt/immortalwrt}"
   REPO_BRANCH="${REPO_BRANCH:-openwrt-25.12}"
+  export REPO_URL REPO_BRANCH
   echo "REPO_URL=$REPO_URL" >> "$GITHUB_ENV"
   echo "REPO_BRANCH=$REPO_BRANCH" >> "$GITHUB_ENV"
   cd /workdir
@@ -156,24 +157,26 @@ clone_source_code() {
   git clone -q -b "$REPO_BRANCH" --single-branch "$REPO_URL" openwrt
   ln -sf /workdir/openwrt "$GITHUB_WORKSPACE/openwrt"
   cd openwrt
-  echo "OPENWRT_PATH=$PWD" >> "$GITHUB_ENV"
+  export OPENWRT_PATH="$PWD"
+  echo "OPENWRT_PATH=$OPENWRT_PATH" >> "$GITHUB_ENV"
 }
 
 set_variable_values() {
   cd "$OPENWRT_PATH"
-  SOURCE_REPO=$(basename "$REPO_URL")
+  export SOURCE_REPO=$(basename "$REPO_URL")
   echo "SOURCE_REPO=$SOURCE_REPO" >> "$GITHUB_ENV"
   echo "LITE_BRANCH=${REPO_BRANCH#*-}" >> "$GITHUB_ENV"
   TARGET_NAME=$(grep -oP '^CONFIG_TARGET_\K[a-z0-9]+(?==y)' "$GITHUB_WORKSPACE/$CONFIG_FILE" | head -1)
   SUBTARGET_NAME=$(grep -oP "^CONFIG_TARGET_${TARGET_NAME}_\K[a-z0-9]+(?==y)" "$GITHUB_WORKSPACE/$CONFIG_FILE" | head -1)
-  DEVICE_TARGET="$TARGET_NAME-$SUBTARGET_NAME"
+  export DEVICE_TARGET="$TARGET_NAME-$SUBTARGET_NAME"
   echo "DEVICE_TARGET=$DEVICE_TARGET" >> "$GITHUB_ENV"
   KERNEL=$(grep -oP 'KERNEL_PATCHVER:=\K[\d\.]+' "target/linux/$TARGET_NAME/Makefile" | head -1 || true)
   if [[ -n "${KERNEL:-}" ]]; then
     KERNEL_FILE="include/kernel-$KERNEL"
     [[ -e "$KERNEL_FILE" ]] || KERNEL_FILE="target/linux/generic/kernel-$KERNEL"
     KERNEL_VERSION=$(grep -oP 'LINUX_KERNEL_HASH-\K[\d\.]+' "$KERNEL_FILE" | head -1 || true)
-    echo "KERNEL_VERSION=${KERNEL_VERSION:-unknown}" >> "$GITHUB_ENV"
+    export KERNEL_VERSION="${KERNEL_VERSION:-unknown}"
+    echo "KERNEL_VERSION=$KERNEL_VERSION" >> "$GITHUB_ENV"
   fi
 }
 
