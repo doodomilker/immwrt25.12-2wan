@@ -1,0 +1,183 @@
+name: build x86/64 openwrt
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: '选择要编译的源码'
+        required: true
+        default: 'immwrt'
+        type: choice
+        options: ['immwrt']
+      target:
+        description: '选择要编译的机型'
+        required: true
+        default: 'x86-64'
+        type: choice
+        options: ['x86-64']
+      repo_branch:
+        description: 'ImmortalWrt 源码版本：默认精确 v25.12.0，可改 openwrt-25.12'
+        required: true
+        default: 'v25.12.0'
+        type: string
+      ip_address:
+        description: '设置默认 IP 地址'
+        required: false
+        default: '10.0.0.2'
+        type: string
+      partsize:
+        description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大'
+        required: false
+        default: '4096'
+        type: string
+      artifact:
+        description: '上传固件到 Artifact'
+        required: false
+        default: true
+        type: boolean
+      release:
+        description: '上传固件到 Releases'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  REPO_URL: https://github.com/immortalwrt/immortalwrt
+  REPO_BRANCH: ${{ inputs.repo_branch }}
+  IP_ADDRESS: ${{ inputs.ip_address }}
+  PART_SIZE: ${{ inputs.partsize }}
+  CONFIG_FILE: configs/${{ inputs.target }}-${{ inputs.source }}.config
+  DIY_SCRIPT: ${{ inputs.source }}.sh
+  RELEASE_TAG: ${{ inputs.target }}-${{ inputs.source }}
+  UPLOAD_ARTIFACT: ${{ inputs.artifact }}
+  UPLOAD_RELEASE: ${{ inputs.release }}
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    name: build ${{ inputs.target }} ${{ inputs.source }}
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Server Performance
+        run: |
+          echo "警告⚠️：插件较多，GitHub Actions 编译时间会比较长。"
+          echo "==========================CPU信息=========================="
+          echo "CPU线程数量: $(nproc)"
+          echo "CPU型号信息:$(grep -m1 'model name' /proc/cpuinfo | awk -F: '{print $2}')"
+          echo "==========================内存信息=========================="
+          free -h
+          echo "==========================硬盘信息=========================="
+          df -hT
+
+      - name: Initialization Environment
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          docker rmi -f $(docker images -q) 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android "$AGENT_TOOLSDIRECTORY" || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile /mnt/swapfile || true
+          sudo -E apt-get -qq update
+          sudo -E apt-get -yqq install \
+            ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+            btrfs-progs bzip2 ccache cmake cpio curl device-tree-compiler fastjar flex \
+            gawk gettext gcc-multilib g++-multilib git gperf haveged help2man intltool \
+            libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+            libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool lrzsz lvm2 \
+            mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 \
+            python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils \
+            re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs unzip \
+            vim wget xmlto xxd zlib1g-dev zstd
+          sudo -E apt-get -yqq autoremove --purge
+          sudo -E apt-get -yqq clean
+          sudo timedatectl set-timezone "$TZ"
+
+      - name: Combine Disks
+        run: |
+          if mountpoint -q /mnt; then
+            mnt_size=$(($(df -k --output=avail /mnt | tail -1) / 1024 - 1024))
+            sudo truncate -s ${mnt_size}M /mnt/mnt.img
+            loop_mnt=$(sudo losetup -f --show /mnt/mnt.img)
+          fi
+          root_size=$(($(df -k --output=avail / | tail -1) / 1024 - 4096))
+          sudo truncate -s ${root_size}M /root.img
+          loop_root=$(sudo losetup -f --show /root.img)
+          if [ -n "${loop_mnt:-}" ]; then
+            sudo pvcreate -f "$loop_mnt" "$loop_root"
+            sudo vgcreate github "$loop_mnt" "$loop_root"
+          else
+            sudo pvcreate -f "$loop_root"
+            sudo vgcreate github "$loop_root"
+          fi
+          sudo lvcreate -n runner -l 100%FREE github
+          sudo mkfs.btrfs -f /dev/github/runner
+          sudo mkdir -p /workdir
+          sudo mount -o compress=zstd /dev/github/runner /workdir
+          sudo chown -R runner:runner /workdir
+          df -hT
+
+      - name: Load Custom Script
+        run: |
+          chmod +x "$DIY_SCRIPT"
+          ./"$DIY_SCRIPT"
+
+      - name: Download DL Packages
+        run: |
+          cd "$OPENWRT_PATH"
+          make package/download -j"$(nproc)" || make package/download -j1 V=s
+          find dl -size -1024c -exec rm -f {} \; || true
+
+      - name: Compile Firmware
+        id: compile
+        run: |
+          cd "$OPENWRT_PATH"
+          mkdir -p files/etc/uci-defaults
+          cp "$GITHUB_WORKSPACE/scripts/init-settings.sh" files/etc/uci-defaults/99-init-settings
+          echo "$(nproc) thread compile"
+          make -j"$(nproc)" || make -j1 V=s
+          echo "FILE_DATE=$(date +"%Y.%m.%d")" >> "$GITHUB_ENV"
+          echo "DATE=$(date +"%Y.%m.%d-%H:%M:%S")" >> "$GITHUB_ENV"
+
+      - name: Organize Files
+        if: steps.compile.conclusion == 'success'
+        run: |
+          df -h
+          cd "$OPENWRT_PATH/bin/targets"/*/*
+          sed '/^$/d' "$OPENWRT_PATH/.config" > config.txt
+          cp -f "$OPENWRT_PATH/.config" full.config
+          rm -rf packages
+          rm -f *.manifest *.buildinfo *.json sha256sums *rootfs.img.gz
+          echo "FIRMWARE_PATH=$PWD" >> "$GITHUB_ENV"
+          ls -lh
+
+      - name: Upload Firmware To Artifact
+        if: steps.compile.conclusion == 'success' && env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: immortalwrt-25.12.0-x86-64-haiibo-base-docker-passwall2-smartdns-cn-${{ env.FILE_DATE }}
+          path: ${{ env.FIRMWARE_PATH }}
+
+      - name: Upload Firmware To Release
+        if: steps.compile.conclusion == 'success' && env.UPLOAD_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: x86-64-immwrt-25.12.0-haiibo-base-custom
+          name: x86-64-immwrt-25.12.0-haiibo-base-custom-${{ env.DATE }}
+          files: ${{ env.FIRMWARE_PATH }}/*
+          body: |
+            **ImmortalWrt 25.12.0 x86-64 firmware, using haiibo 24.10 x86-64-immwrt config as base**
+
+            ### 固件信息
+            - 平台架构: x86-64
+            - 固件源码: ${{ env.REPO_URL }}
+            - 源码分支: ${{ env.REPO_BRANCH }}
+            - 默认地址: ${{ env.IP_ADDRESS }}
+            - 默认密码: password
+            - 新增: Docker / Dockerman, PassWall2, SmartDNS, LuCI 简体中文语言包
