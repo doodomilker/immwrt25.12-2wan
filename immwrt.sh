@@ -193,8 +193,9 @@ add_custom_packages() {
   mkdir -p "$destination_dir"
 
   # 基础插件
-  # adguardhome: lean 23.05 与 25.12 跨度太大，改用 sbwml 25.12 兼容版
-  clone_all https://github.com/sbwml/luci-app-adguardhome
+  # adguardhome: sbwml/luci-app-adguardhome 已删库（404），25.12 暂不带；
+  # 后续如需可换 rufengsuixing/luci-app-adguardhome 或 kongfl888 fork，需先验证 25.12 兼容性
+  # clone_all https://github.com/sbwml/luci-app-adguardhome
   clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
   clone_all https://github.com/sbwml/luci-app-alist
   clone_all https://github.com/sbwml/luci-app-mosdns
