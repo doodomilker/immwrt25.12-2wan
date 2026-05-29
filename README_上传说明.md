@@ -11,7 +11,7 @@
 - 原 haiibo 24.10 插件：保留
 - 新增插件：Docker / Dockerman、PassWall2、SmartDNS
 - 新增插件中文包：已加入
-- 默认 LAN IP：`10.0.0.2`
+- 默认 LAN IP：`192.168.50.1`
 - 默认 root 密码：`password`
 - Docker 版默认 rootfs：`4096 MB`
 

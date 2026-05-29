@@ -22,8 +22,8 @@ on:
         type: string
       ip_address:
         description: '设置默认 IP 地址'
-        required: false
-        default: '10.0.0.2'
+        required: true
+        default: '192.168.50.1'
         type: string
       partsize:
         description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大'
