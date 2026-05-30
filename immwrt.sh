@@ -211,12 +211,10 @@ add_custom_packages() {
   clone_all https://github.com/Openwrt-Passwall/openwrt-passwall
   clone_all https://github.com/Openwrt-Passwall/openwrt-passwall2
 
-  # FIX: shadowsocksr-libev PKG_HASH drift — upstream .gitattributes makes
-  # git-archive output non-reproducible. Force PKG_HASH:=skip so make download passes.
-  for mk in "$destination_dir/shadowsocksr-libev/Makefile" \
-            "$destination_dir/shadowsocksr-libev"/*/Makefile; do
-    [ -f "$mk" ] && sed -i 's|^PKG_HASH:=.*|PKG_HASH:=skip|' "$mk" || true
-  done
+  # FIX: 删 shadowsocksr-libev — passwall-packages 里的 SSR 老坑，
+  # upstream .gitattributes 漂移导致 git-archive 哈希对不上，且 SSR 协议早死，
+  # 用 SS/Trojan/VLESS/VMess/Hysteria2 替代足够。
+  rm -rf "$destination_dir/shadowsocksr-libev" 2>/dev/null || true
   clone_dir https://github.com/vernesong/OpenClash luci-app-openclash
   clone_all https://github.com/nikkinikki-org/OpenWrt-nikki
   clone_all https://github.com/nikkinikki-org/OpenWrt-momo
