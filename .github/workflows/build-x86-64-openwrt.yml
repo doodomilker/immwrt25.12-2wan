@@ -128,6 +128,15 @@ jobs:
           chmod +x "$DIY_SCRIPT"
           ./"$DIY_SCRIPT"
 
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /workdir/openwrt/staging_dir/host/ccache
+          key: ccache-${{ inputs.target }}-${{ inputs.source }}-${{ inputs.repo_branch }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ inputs.target }}-${{ inputs.source }}-${{ inputs.repo_branch }}-
+            ccache-${{ inputs.target }}-${{ inputs.source }}-
+
       - name: Download DL Packages
         run: |
           cd "$OPENWRT_PATH"
