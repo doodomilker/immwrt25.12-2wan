@@ -6,9 +6,9 @@ on:
       source:
         description: '选择要编译的源码'
         required: true
-        default: 'immwrt'
+        default: 'pve2wan'
         type: choice
-        options: ['immwrt']
+        options: ['immwrt', 'pve2wan']
       target:
         description: '选择要编译的机型'
         required: true
@@ -26,9 +26,9 @@ on:
         default: '192.168.50.1'
         type: string
       partsize:
-        description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大'
+        description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大；PVE VM slim 建议 512'
         required: false
-        default: '4096'
+        default: '512'
         type: string
       artifact:
         description: '上传固件到 Artifact'
@@ -182,18 +182,18 @@ jobs:
         if: steps.compile.conclusion == 'success' && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: immortalwrt-25.12.0-x86-64-haiibo-base-docker-passwall2-smartdns-cn-${{ env.FILE_DATE }}
+          name: immortalwrt-25.12.0-x86-64-pve2wan-vm-${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE_PATH }}
 
       - name: Upload Firmware To Release
         if: steps.compile.conclusion == 'success' && env.UPLOAD_RELEASE == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: x86-64-immwrt-25.12.0-haiibo-base-custom
-          name: x86-64-immwrt-25.12.0-haiibo-base-custom-${{ env.DATE }}
+          tag_name: x86-64-pve2wan-25.12.0
+          name: x86-64-pve2wan-25.12.0-${{ env.DATE }}
           files: ${{ env.FIRMWARE_PATH }}/*
           body: |
-            **ImmortalWrt 25.12.0 x86-64 firmware, using haiibo 24.10 x86-64-immwrt config as base**
+            **ImmortalWrt 25.12.0 x86-64 PVE VM slim build for dual-OP HA**
 
             ### 固件信息
             - 平台架构: x86-64
@@ -201,4 +201,5 @@ jobs:
             - 源码分支: ${{ env.REPO_BRANCH }}
             - 默认地址: ${{ env.IP_ADDRESS }}
             - 默认密码: password
-            - 新增: Docker / Dockerman, PassWall2, SmartDNS, LuCI 简体中文语言包
+            - 新增: PassWall + PassWall2, SmartDNS, keepalived VRRP, kmod-nft-*
+            - 精简: 无 Docker/WiFi/Samba/Alist/netdata
