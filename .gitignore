@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# OpenWrt build artifacts (本地编译时生成)
+build/
+bin/
+build_dir/
+staging_dir/
+tmp/
+dl/
+.config.old
+*.log
