@@ -131,10 +131,14 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v4
         with:
-          path: /workdir/openwrt/staging_dir/host/ccache
-          key: ccache-${{ inputs.target }}-${{ inputs.source }}-${{ inputs.repo_branch }}-${{ github.sha }}
+          # ccache 默认数据目录是 $HOME/.ccache，OpenWrt 编译过程没有显式
+          # export CCACHE_DIR，所以缓存数据落在 /home/runner/.ccache。
+          # 之前缓存的 /workdir/openwrt/staging_dir/host/ccache 只放 ccache
+          # 二进制，没有缓存数据，导致 Post Cache 0s + 命中率 0%。
+          path: ~/.ccache
+          # key 不含 github.sha：每次 commit 都能命中同一 slot，避免 cache 漂移。
+          key: ccache-${{ inputs.target }}-${{ inputs.source }}-${{ inputs.repo_branch }}
           restore-keys: |
-            ccache-${{ inputs.target }}-${{ inputs.source }}-${{ inputs.repo_branch }}-
             ccache-${{ inputs.target }}-${{ inputs.source }}-
 
       - name: Download DL Packages
@@ -145,12 +149,20 @@ jobs:
 
       - name: Compile Firmware
         id: compile
+        env:
+          # 双保险：显式 export CCACHE_DIR 给 OpenWrt 编译 + ccache wrapper
+          CCACHE_DIR: /home/runner/.ccache
         run: |
           cd "$OPENWRT_PATH"
           mkdir -p files/etc/uci-defaults
           cp "$GITHUB_WORKSPACE/scripts/init-settings.sh" files/etc/uci-defaults/99-init-settings
+          mkdir -p "$CCACHE_DIR"
+          ccache --max-size=3G 2>/dev/null || true
+          ccache -z 2>/dev/null || true
           echo "$(nproc) thread compile"
           make -j"$(nproc)" || make -j1 V=s
+          echo "=== ccache stats after build ==="
+          ccache -s 2>/dev/null || true
           echo "FILE_DATE=$(date +"%Y.%m.%d")" >> "$GITHUB_ENV"
           echo "DATE=$(date +"%Y.%m.%d-%H:%M:%S")" >> "$GITHUB_ENV"
 
