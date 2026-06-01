@@ -14,18 +14,26 @@ color() {
 }
 
 status_info() {
-  local task_name="$1" begin_time exit_code time_info
+  local task_name="$1" begin_time exit_code time_info had_errexit=0
   begin_time=$(date +%s)
   shift
+
+  [[ $- == *e* ]] && had_errexit=1
+  set +e
   "$@"
   exit_code=$?
+  [[ "$had_errexit" -eq 1 ]] && set -e
+
   [[ "$exit_code" -eq 99 ]] && return 0
+
   time_info="==> 用时 $(($(date +%s) - begin_time)) 秒"
   if [[ "$exit_code" -eq 0 ]]; then
     printf "%s %-52s %s %s\n" "$(color cy "⏳ $task_name")" "" "[ $(color cg ✔) ]" "$(color cw "$time_info")"
   else
     printf "%s %-52s %s %s\n" "$(color cy "⏳ $task_name")" "" "[ $(color cr ✖) ]" "$(color cw "$time_info")"
   fi
+
+  return "$exit_code"
 }
 
 find_dir() {
