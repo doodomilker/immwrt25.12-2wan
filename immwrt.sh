@@ -188,55 +188,75 @@ update_install_feeds() {
 
 add_custom_packages() {
   cd "$OPENWRT_PATH"
-  echo " 添加额外插件，按 haiibo 24.10 immwrt.sh 原逻辑保留..."
   destination_dir="package/A"
   mkdir -p "$destination_dir"
 
-  # 基础插件
-  # adguardhome: sbwml/luci-app-adguardhome 已删库（404），25.12 暂不带；
-  # 后续如需可换 rufengsuixing/luci-app-adguardhome 或 kongfl888 fork，需先验证 25.12 兼容性
-  # clone_all https://github.com/sbwml/luci-app-adguardhome
-  clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
-  clone_all https://github.com/sbwml/luci-app-alist
-  clone_all https://github.com/sbwml/luci-app-mosdns
-  # golang: sbwml 替换 toolchain 与 25.12 feeds 错位风险，首编先注释，验证后再开
-  # git_clone https://github.com/sbwml/packages_lang_golang golang
-  clone_all https://github.com/linkease/istore-ui
-  clone_all https://github.com/linkease/istore luci
-  clone_all https://github.com/brvphoenix/luci-app-wrtbwmon
-  clone_all https://github.com/brvphoenix/wrtbwmon
+  if [[ "${CONFIG_FILE:-}" == *"pve2wan.config" ]]; then
+    echo " 添加额外插件：pve2wan 精简路线（只拉编译必需包）..."
 
-  # 科学上网插件
-  clone_all https://github.com/Openwrt-Passwall/openwrt-passwall-packages
-  clone_all https://github.com/Openwrt-Passwall/openwrt-passwall
-  clone_all https://github.com/Openwrt-Passwall/openwrt-passwall2
+    # pve2wan 仅保留实际启用的自定义包，避免把 nikki/momo/openclash/daed/homeproxy
+    # 等与当前配置无关、且在 25.12 上可能互相打架的包拉进来。
+    clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
+    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall-packages
+    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall
+    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall2
 
-  # FIX: 删 shadowsocksr-libev — passwall-packages 里的 SSR 老坑，
-  # upstream .gitattributes 漂移导致 git-archive 哈希对不上，且 SSR 协议早死，
-  # 用 SS/Trojan/VLESS/VMess/Hysteria2 替代足够。
-  rm -rf "$destination_dir/shadowsocksr-libev" 2>/dev/null || true
-  clone_dir https://github.com/vernesong/OpenClash luci-app-openclash
-  clone_all https://github.com/nikkinikki-org/OpenWrt-nikki
-  clone_all https://github.com/nikkinikki-org/OpenWrt-momo
-  clone_dir https://github.com/QiuSimons/luci-app-daed daed luci-app-daed
-  git_clone https://github.com/immortalwrt/homeproxy luci-app-homeproxy
+    # FIX: 删 shadowsocksr-libev — passwall-packages 里的 SSR 老坑，
+    # upstream .gitattributes 漂移导致 git-archive 哈希对不上，且 SSR 协议早死。
+    rm -rf "$destination_dir/shadowsocksr-libev" 2>/dev/null || true
 
-  # Themes
-  git_clone https://github.com/kiddin9/luci-theme-edge
-  git_clone https://github.com/jerrykuku/luci-theme-argon
-  git_clone https://github.com/jerrykuku/luci-app-argon-config
-  git_clone https://github.com/eamonxg/luci-theme-aurora
-  git_clone https://github.com/eamonxg/luci-app-aurora-config
-  git_clone https://github.com/sirpdboy/luci-theme-kucat
-  git_clone https://github.com/sirpdboy/luci-app-kucat-config
-  # luci-theme-design: immortalwrt feed 25.12 没有此主题，需要单独 clone（haiibo 原版漏写）
-  clone_all https://github.com/0x676e67/luci-theme-design
+    # Themes actually enabled by x86-64-pve2wan.config
+    git_clone https://github.com/jerrykuku/luci-theme-argon
+    clone_all https://github.com/0x676e67/luci-theme-design
+  else
+    echo " 添加额外插件，按 haiibo 24.10 immwrt.sh 原逻辑保留..."
 
-  # 晶晨宝盒，保留 haiibo 原来的包源；x86 配置未启用，不影响固件菜单
-  clone_all https://github.com/ophub/luci-app-amlogic
-  if [[ -f "$destination_dir/luci-app-amlogic/root/etc/config/amlogic" ]]; then
-    sed -i "s|firmware_repo.*|firmware_repo 'https://github.com/$GITHUB_REPOSITORY'|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
-    sed -i "s|ARMv8|$RELEASE_TAG|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
+    # 基础插件
+    # adguardhome: sbwml/luci-app-adguardhome 已删库（404），25.12 暂不带；
+    # 后续如需可换 rufengsuixing/luci-app-adguardhome 或 kongfl888 fork，需先验证 25.12 兼容性
+    # clone_all https://github.com/sbwml/luci-app-adguardhome
+    clone_dir https://github.com/sirpdboy/luci-app-ddns-go ddns-go luci-app-ddns-go
+    clone_all https://github.com/sbwml/luci-app-alist
+    clone_all https://github.com/sbwml/luci-app-mosdns
+    # golang: sbwml 替换 toolchain 与 25.12 feeds 错位风险，首编先注释，验证后再开
+    # git_clone https://github.com/sbwml/packages_lang_golang golang
+    clone_all https://github.com/linkease/istore-ui
+    clone_all https://github.com/linkease/istore luci
+    clone_all https://github.com/brvphoenix/luci-app-wrtbwmon
+    clone_all https://github.com/brvphoenix/wrtbwmon
+
+    # 科学上网插件
+    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall-packages
+    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall
+    clone_all https://github.com/Openwrt-Passwall/openwrt-passwall2
+
+    # FIX: 删 shadowsocksr-libev — passwall-packages 里的 SSR 老坑，
+    # upstream .gitattributes 漂移导致 git-archive 哈希对不上，且 SSR 协议早死，
+    # 用 SS/Trojan/VLESS/VMess/Hysteria2 替代足够。
+    rm -rf "$destination_dir/shadowsocksr-libev" 2>/dev/null || true
+    clone_dir https://github.com/vernesong/OpenClash luci-app-openclash
+    clone_all https://github.com/nikkinikki-org/OpenWrt-nikki
+    clone_all https://github.com/nikkinikki-org/OpenWrt-momo
+    clone_dir https://github.com/QiuSimons/luci-app-daed daed luci-app-daed
+    git_clone https://github.com/immortalwrt/homeproxy luci-app-homeproxy
+
+    # Themes
+    git_clone https://github.com/kiddin9/luci-theme-edge
+    git_clone https://github.com/jerrykuku/luci-theme-argon
+    git_clone https://github.com/jerrykuku/luci-app-argon-config
+    git_clone https://github.com/eamonxg/luci-theme-aurora
+    git_clone https://github.com/eamonxg/luci-app-aurora-config
+    git_clone https://github.com/sirpdboy/luci-theme-kucat
+    git_clone https://github.com/sirpdboy/luci-app-kucat-config
+    # luci-theme-design: immortalwrt feed 25.12 没有此主题，需要单独 clone（haiibo 原版漏写）
+    clone_all https://github.com/0x676e67/luci-theme-design
+
+    # 晶晨宝盒，保留 haiibo 原来的包源；x86 配置未启用，不影响固件菜单
+    clone_all https://github.com/ophub/luci-app-amlogic
+    if [[ -f "$destination_dir/luci-app-amlogic/root/etc/config/amlogic" ]]; then
+      sed -i "s|firmware_repo.*|firmware_repo 'https://github.com/$GITHUB_REPOSITORY'|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
+      sed -i "s|ARMv8|$RELEASE_TAG|g" "$destination_dir/luci-app-amlogic/root/etc/config/amlogic"
+    fi
   fi
 
   # 修复 Makefile 路径
