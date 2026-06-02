@@ -169,27 +169,33 @@ jobs:
           echo "FILE_DATE=$(date +"%Y.%m.%d")" >> "$GITHUB_ENV"
           echo "DATE=$(date +"%Y.%m.%d-%H:%M:%S")" >> "$GITHUB_ENV"
           echo "TAG_DATE=$(date +"%Y.%m.%d-%H%M%S")" >> "$GITHUB_ENV"
-          echo "RELEASE_TAG_FULL=x86-64-pve2wan-25.12.0-$(date +"%Y.%m.%d-%H%M%S")" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_FULL=x86-64-${GITHUB_REF_NAME}-25.12.0-$(date +"%Y.%m.%d-%H%M%S")" >> "$GITHUB_ENV"
 
       - name: Generate Release Notes
         if: steps.compile.conclusion == 'success' && env.UPLOAD_RELEASE == 'true'
         run: |
           cd "$GITHUB_WORKSPACE"
-          release_prefix="x86-64-pve2wan-25.12.0-"
+          release_prefix="x86-64-${GITHUB_REF_NAME}-25.12.0-"
           previous_tag=$(git tag --list "${release_prefix}*" --sort=-creatordate | head -n 1 || true)
           notes_file="$RUNNER_TEMP/release-notes.md"
 
+          case "$GITHUB_REF_NAME" in
+            main) profile_desc="主路由全家桶" ;;
+            opdocker2wan) profile_desc="Docker 双 WAN" ;;
+            pve2wan) profile_desc="PVE 双 OP HA" ;;
+            *) profile_desc="$GITHUB_REF_NAME" ;;
+          esac
+
           {
-            echo "**ImmortalWrt 25.12.0 x86-64 PVE VM slim build for dual-OP HA**"
+            echo "**ImmortalWrt 25.12.0 x86-64 ${GITHUB_REF_NAME} build**"
             echo
             echo "### 固件信息"
+            echo "- 版本定位: $profile_desc"
             echo "- 平台架构: x86-64"
             echo "- 固件源码: $REPO_URL"
             echo "- 源码分支: $REPO_BRANCH"
             echo "- 默认地址: $IP_ADDRESS"
             echo "- 默认密码: password"
-            echo "- 新增: PassWall + PassWall2, SmartDNS, keepalived VRRP, kmod-nft-*"
-            echo "- 精简: 无 Docker/WiFi/Samba/Alist/netdata"
             echo
             echo "### 本次更新"
             if [[ -n "${previous_tag:-}" ]]; then
@@ -217,7 +223,7 @@ jobs:
         if: steps.compile.conclusion == 'success' && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: immortalwrt-25.12.0-x86-64-pve2wan-vm-${{ env.FILE_DATE }}
+          name: immortalwrt-25.12.0-x86-64-${{ github.ref_name }}-${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE_PATH }}
 
       - name: Upload Firmware To Release
@@ -225,6 +231,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.RELEASE_TAG_FULL }}
-          name: x86-64-pve2wan-25.12.0-${{ env.DATE }}
+          name: x86-64-${{ github.ref_name }}-25.12.0-${{ env.DATE }}
           files: ${{ env.FIRMWARE_PATH }}/*
           body_path: ${{ env.RELEASE_NOTES_FILE }}
