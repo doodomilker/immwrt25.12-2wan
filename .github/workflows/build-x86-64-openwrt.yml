@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: '选择要编译的源码'
+        description: '选择要编译的源码路线'
         required: true
         default: 'pve2wan'
         type: choice
-        options: ['immwrt', 'pve2wan']
+        options: ['pve2wan']
       target:
         description: '选择要编译的机型'
         required: true
