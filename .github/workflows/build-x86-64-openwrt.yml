@@ -16,9 +16,9 @@ on:
         type: choice
         options: ['x86-64']
       repo_branch:
-        description: 'ImmortalWrt 源码版本：默认 openwrt-25.12 维护分支，可改 v25.12.0 锁版本'
+        description: 'ImmortalWrt 源码版本：默认锁定 v25.12.0 稳定版；如需跟 25.12 维护线，可手动改为 openwrt-25.12'
         required: true
-        default: 'openwrt-25.12'
+        default: 'v25.12.0'
         type: string
       ip_address:
         description: '设置默认 IP 地址'
@@ -26,9 +26,9 @@ on:
         default: '192.168.50.1'
         type: string
       partsize:
-        description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大；PVE VM slim 建议 512'
+        description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大；PVE VM slim 建议 1024'
         required: false
-        default: '512'
+        default: '1024'
         type: string
       artifact:
         description: '上传固件到 Artifact'
@@ -63,7 +63,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Check Server Performance
         run: |
@@ -129,7 +132,7 @@ jobs:
           ./"$DIY_SCRIPT"
 
       - name: Cache ccache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           # ccache 默认数据目录是 $HOME/.ccache，OpenWrt 编译过程没有显式
           # export CCACHE_DIR，所以缓存数据落在 /home/runner/.ccache。
@@ -165,6 +168,38 @@ jobs:
           ccache -s 2>/dev/null || true
           echo "FILE_DATE=$(date +"%Y.%m.%d")" >> "$GITHUB_ENV"
           echo "DATE=$(date +"%Y.%m.%d-%H:%M:%S")" >> "$GITHUB_ENV"
+          echo "TAG_DATE=$(date +"%Y.%m.%d-%H%M%S")" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG_FULL=x86-64-pve2wan-25.12.0-$(date +"%Y.%m.%d-%H%M%S")" >> "$GITHUB_ENV"
+
+      - name: Generate Release Notes
+        if: steps.compile.conclusion == 'success' && env.UPLOAD_RELEASE == 'true'
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          release_prefix="x86-64-pve2wan-25.12.0-"
+          previous_tag=$(git tag --list "${release_prefix}*" --sort=-creatordate | head -n 1 || true)
+          notes_file="$RUNNER_TEMP/release-notes.md"
+
+          {
+            echo "**ImmortalWrt 25.12.0 x86-64 PVE VM slim build for dual-OP HA**"
+            echo
+            echo "### 固件信息"
+            echo "- 平台架构: x86-64"
+            echo "- 固件源码: $REPO_URL"
+            echo "- 源码分支: $REPO_BRANCH"
+            echo "- 默认地址: $IP_ADDRESS"
+            echo "- 默认密码: password"
+            echo "- 新增: PassWall + PassWall2, SmartDNS, keepalived VRRP, kmod-nft-*"
+            echo "- 精简: 无 Docker/WiFi/Samba/Alist/netdata"
+            echo
+            echo "### 本次更新"
+            if [[ -n "${previous_tag:-}" ]]; then
+              git log --no-merges --pretty='- %s' "${previous_tag}..HEAD"
+            else
+              git log --no-merges --pretty='- %s' -n 10
+            fi
+          } > "$notes_file"
+
+          echo "RELEASE_NOTES_FILE=$notes_file" >> "$GITHUB_ENV"
 
       - name: Organize Files
         if: steps.compile.conclusion == 'success'
@@ -180,26 +215,16 @@ jobs:
 
       - name: Upload Firmware To Artifact
         if: steps.compile.conclusion == 'success' && env.UPLOAD_ARTIFACT == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: immortalwrt-25.12.0-x86-64-pve2wan-vm-${{ env.FILE_DATE }}
           path: ${{ env.FIRMWARE_PATH }}
 
       - name: Upload Firmware To Release
         if: steps.compile.conclusion == 'success' && env.UPLOAD_RELEASE == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
-          tag_name: x86-64-pve2wan-25.12.0
+          tag_name: ${{ env.RELEASE_TAG_FULL }}
           name: x86-64-pve2wan-25.12.0-${{ env.DATE }}
           files: ${{ env.FIRMWARE_PATH }}/*
-          body: |
-            **ImmortalWrt 25.12.0 x86-64 PVE VM slim build for dual-OP HA**
-
-            ### 固件信息
-            - 平台架构: x86-64
-            - 固件源码: ${{ env.REPO_URL }}
-            - 源码分支: ${{ env.REPO_BRANCH }}
-            - 默认地址: ${{ env.IP_ADDRESS }}
-            - 默认密码: password
-            - 新增: PassWall + PassWall2, SmartDNS, keepalived VRRP, kmod-nft-*
-            - 精简: 无 Docker/WiFi/Samba/Alist/netdata
+          body_path: ${{ env.RELEASE_NOTES_FILE }}
