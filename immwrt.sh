@@ -188,7 +188,7 @@ update_install_feeds() {
 
 add_custom_packages() {
   cd "$OPENWRT_PATH"
-  echo " 添加额外插件，按 haiibo 24.10 immwrt.sh 原逻辑保留..."
+  echo " 添加额外插件，按 main 全家桶主路由路线保留核心功能..."
   destination_dir="package/A"
   mkdir -p "$destination_dir"
 
@@ -216,10 +216,6 @@ add_custom_packages() {
   # 用 SS/Trojan/VLESS/VMess/Hysteria2 替代足够。
   rm -rf "$destination_dir/shadowsocksr-libev" 2>/dev/null || true
   clone_dir https://github.com/vernesong/OpenClash luci-app-openclash
-  clone_all https://github.com/nikkinikki-org/OpenWrt-nikki
-  clone_all https://github.com/nikkinikki-org/OpenWrt-momo
-  clone_dir https://github.com/QiuSimons/luci-app-daed daed luci-app-daed
-  git_clone https://github.com/immortalwrt/homeproxy luci-app-homeproxy
 
   # Themes
   git_clone https://github.com/kiddin9/luci-theme-edge
@@ -258,7 +254,7 @@ apply_custom_settings() {
   cd "$OPENWRT_PATH"
   [[ -e "$GITHUB_WORKSPACE/files" ]] && mv "$GITHUB_WORKSPACE/files" files
 
-  # 设置固件 rootfs 大小。配置文件保留 haiibo 24.10 的 1024；Action 默认因 Docker 改为 4096。
+  # 设置固件 rootfs 大小。main 全家桶主路由路线默认保持 4096。
   if [[ -n "${PART_SIZE:-}" ]]; then
     sed -i '/ROOTFS_PARTSIZE/d' "$GITHUB_WORKSPACE/$CONFIG_FILE"
     echo "CONFIG_TARGET_ROOTFS_PARTSIZE=$PART_SIZE" >> "$GITHUB_WORKSPACE/$CONFIG_FILE"

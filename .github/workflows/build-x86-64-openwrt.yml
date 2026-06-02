@@ -180,7 +180,7 @@ jobs:
           notes_file="$RUNNER_TEMP/release-notes.md"
 
           case "$GITHUB_REF_NAME" in
-            main) profile_desc="主路由全家桶" ;;
+            main) profile_desc="主路由全家桶 + Wi-Fi + Docker + PassWall/PassWall2 + OpenClash" ;;
             opdocker2wan) profile_desc="Docker 双 WAN" ;;
             pve2wan) profile_desc="PVE 双 OP HA" ;;
             *) profile_desc="$GITHUB_REF_NAME" ;;
