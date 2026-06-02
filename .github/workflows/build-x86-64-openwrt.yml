@@ -181,7 +181,7 @@ jobs:
 
           case "$GITHUB_REF_NAME" in
             main) profile_desc="主路由全家桶" ;;
-            opdocker2wan) profile_desc="Docker 双 WAN" ;;
+            opdocker2wan) profile_desc="Docker 旁路由 + wan2 + Wi-Fi + PassWall/PassWall2" ;;
             pve2wan) profile_desc="PVE 双 OP HA" ;;
             *) profile_desc="$GITHUB_REF_NAME" ;;
           esac
