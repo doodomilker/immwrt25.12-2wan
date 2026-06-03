@@ -17,7 +17,7 @@ status_info() {
   local task_name="$1" begin_time exit_code time_info
   begin_time=$(date +%s)
   shift
-  "$@"
+  "$@" || true
   exit_code=$?
   [[ "$exit_code" -eq 99 ]] && return 0
   time_info="==> 用时 $(($(date +%s) - begin_time)) 秒"
