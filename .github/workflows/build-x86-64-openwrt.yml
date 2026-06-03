@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       source:
-        description: '选择要编译的源码'
+        description: '选择要编译的源码路线'
         required: true
-        default: 'immwrt'
+        default: 'dockerrootfs'
         type: choice
-        options: ['immwrt']
+        options: ['dockerrootfs']
       target:
         description: '选择要编译的机型'
         required: true
@@ -20,23 +20,18 @@ on:
         required: true
         default: 'v25.12.0'
         type: string
-      ip_address:
-        description: '设置默认 IP 地址'
-        required: true
-        default: '192.168.50.1'
-        type: string
       partsize:
-        description: '设置 rootfs 大小。原 24.10 配置为 1024；Docker 建议 4096 或更大'
+        description: 'rootfs 大小（容器 rootfs 占位值，默认 512）'
         required: false
-        default: '4096'
+        default: '512'
         type: string
       artifact:
-        description: '上传固件到 Artifact'
+        description: '上传 rootfs 到 Artifact'
         required: false
         default: true
         type: boolean
       release:
-        description: '上传固件到 Releases'
+        description: '上传 rootfs 到 Releases'
         required: false
         default: true
         type: boolean
@@ -47,7 +42,6 @@ permissions:
 env:
   REPO_URL: https://github.com/immortalwrt/immortalwrt
   REPO_BRANCH: ${{ inputs.repo_branch }}
-  IP_ADDRESS: ${{ inputs.ip_address }}
   PART_SIZE: ${{ inputs.partsize }}
   CONFIG_FILE: configs/${{ inputs.target }}-${{ inputs.source }}.config
   DIY_SCRIPT: ${{ inputs.source }}.sh
@@ -134,12 +128,7 @@ jobs:
       - name: Cache ccache
         uses: actions/cache@v5
         with:
-          # ccache 默认数据目录是 $HOME/.ccache，OpenWrt 编译过程没有显式
-          # export CCACHE_DIR，所以缓存数据落在 /home/runner/.ccache。
-          # 之前缓存的 /workdir/openwrt/staging_dir/host/ccache 只放 ccache
-          # 二进制，没有缓存数据，导致 Post Cache 0s + 命中率 0%。
           path: ~/.ccache
-          # key 不含 github.sha：每次 commit 都能命中同一 slot，避免 cache 漂移。
           key: ccache-${{ inputs.target }}-${{ inputs.source }}-${{ inputs.repo_branch }}
           restore-keys: |
             ccache-${{ inputs.target }}-${{ inputs.source }}-
@@ -153,7 +142,6 @@ jobs:
       - name: Compile Firmware
         id: compile
         env:
-          # 双保险：显式 export CCACHE_DIR 给 OpenWrt 编译 + ccache wrapper
           CCACHE_DIR: /home/runner/.ccache
         run: |
           cd "$OPENWRT_PATH"
@@ -179,22 +167,14 @@ jobs:
           previous_tag=$(git tag --list "${release_prefix}*" --sort=-creatordate | head -n 1 || true)
           notes_file="$RUNNER_TEMP/release-notes.md"
 
-          case "$GITHUB_REF_NAME" in
-            main) profile_desc="主路由全家桶 + Wi-Fi + Docker + PassWall/PassWall2 + OpenClash" ;;
-            opdocker2wan) profile_desc="Docker 双 WAN" ;;
-            pve2wan) profile_desc="PVE 双 OP HA" ;;
-            *) profile_desc="$GITHUB_REF_NAME" ;;
-          esac
-
           {
-            echo "**ImmortalWrt 25.12.0 x86-64 ${GITHUB_REF_NAME} build**"
+            echo "**ImmortalWrt 25.12.0 x86-64 dockerrootfs build**"
             echo
             echo "### 固件信息"
-            echo "- 版本定位: $profile_desc"
+            echo "- 版本定位: Docker 旁路由 rootfs"
             echo "- 平台架构: x86-64"
             echo "- 固件源码: $REPO_URL"
             echo "- 源码分支: $REPO_BRANCH"
-            echo "- 默认地址: $IP_ADDRESS"
             echo "- 默认密码: password"
             echo
             echo "### 本次更新"
@@ -213,9 +193,11 @@ jobs:
           df -h
           cd "$OPENWRT_PATH/bin/targets"/*/*
           sed '/^$/d' "$OPENWRT_PATH/.config" > config.txt
-          cp -f "$OPENWRT_PATH/.config" full.config
           rm -rf packages
-          rm -f *.manifest *.buildinfo *.json sha256sums *rootfs.img.gz
+          rm -f *.img *.img.gz *.iso *.vdi *.vmdk *.manifest *.buildinfo *.json sha256sums || true
+          if [[ -f immortalwrt-x86-64-generic-rootfs.tar.gz ]]; then
+            cp -f immortalwrt-x86-64-generic-rootfs.tar.gz immortalwrt-x86-64-generic-rootfs-ready-v4.tar.gz
+          fi
           echo "FIRMWARE_PATH=$PWD" >> "$GITHUB_ENV"
           ls -lh
 

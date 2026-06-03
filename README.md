@@ -1,166 +1,112 @@
-# immwrt25.12-2wan
+# dockerrootfs
 
-这是一个面向 `N100 / x86-64` 的 ImmortalWrt 三线编译仓库。
+这是 `immwrt25.12-2wan` 的 Docker 容器 rootfs 分支。
 
-仓库只负责“怎么稳定编出来”，不保存线上部署、快照和排障细节。
-部署资料统一放在：
+它不是宿主机固件，也不是 PVE 虚拟机镜像，而是给 `docker import` 用的最小化旁路由容器基线。
 
-```text
-star/docs/servers/openwrt-192.168.50.1/
-```
+## 1. 这条线做什么
 
----
+`dockerrootfs` 适合下面这种场景：
 
-## 1. 三条发布线
+- 主路由本机已经是 OpenWrt / ImmortalWrt
+- 旁路由能力放进 Docker 容器里
+- 容器拿独立 LAN IP
+- 容器流量按宿主机策略走 `wan2`
+- 容器只保留 PassWall / PassWall2 / LuCI / argon / 中文包
 
-本仓库维护三条明确分工的发布线：
+这条线不负责：
 
-| 分支 | 定位 | 典型场景 |
-|---|---|---|
-| `main` | 主路由完整全家桶 | 功能尽量全、管理页尽量齐、长期物理机主路由 |
-| `opdocker2wan` | Docker 旁路由 + `wan2` | 主路由上保留 Docker，容器走 `wan2`，同时保留 Wi‑Fi 和双 PassWall |
-| `pve2wan` | PVE 双 OP 精简版 | PVE 里跑双 OpenWrt VM，做 keepalived / VRRP / fallback |
+- Docker 宿主机能力
+- Wi-Fi
+- Netdata / Dockerman / Diskman
+- PVE 双 OP HA
 
----
+## 2. 编译输入
 
-## 2. 分支口径
+本分支默认使用：
 
-### `main`
-- 主路由完整全家桶
-- 保留 Docker / Dockerman
-- 保留 Wi‑Fi
-- 保留 `PassWall` / `PassWall2` / `OpenClash`
-- 保留 `SmartDNS`
-- 保留 `Samba4` / `Alist`
-- 保留 `Netdata` / `Nlbwmon` / `TTYD`
-- `rootfs` 保持较大，适合功能全的主路由
+- `source = dockerrootfs`
+- `repo_branch = v25.12.0`
+- workflow 选 `branch dockerrootfs`
 
-### `opdocker2wan`
-- 主路由 + Docker 旁路由
-- Docker 容器出口走 `wan2`
-- 保留 Wi‑Fi
-- 保留 `PassWall` / `PassWall2`
-- 保留健康检查工具
-- 保留 Docker / 磁盘 / 监控核心管理页
-- 代理面板收口，避免过度堆叠
+GitHub Actions 里只要按这三个选就行：
 
-### `pve2wan`
-- PVE 虚拟机专用
-- 双 OP / 双 VIP / keepalived
-- 保留 `PassWall` / `PassWall2`
-- 保留 `SmartDNS`
-- 保留 `keepalived`
-- 保留健康检查基础工具
-- 尽量精简，减少虚拟机负担
+1. workflow from: `branch dockerrootfs`
+2. source: `dockerrootfs`
+3. repo_branch: `v25.12.0`
 
----
+## 3. 核心保留项
 
-## 3. 编译输入
+这条线重点保留：
 
-三条线默认都锁到稳定版本 `v25.12.0`。
-常用输入口径如下：
+- LuCI 完整基础页
+- `luci-theme-argon`
+- `PassWall`
+- `PassWall2`
+- `firewall4`
+- `nftables`
+- `iptables-nft`
+- `tproxy`
+- `ipset`
+- `ip-full`
+- `dnsmasq-full`
+- `dropbear`
+- 中文包
 
-| 分支 | workflow from | source | repo_branch |
-|---|---|---|---|
-| `main` | `branch main` | `immwrt` | `v25.12.0` |
-| `opdocker2wan` | `branch opdocker2wan` | `immwrt` | `v25.12.0` |
-| `pve2wan` | `branch pve2wan` | `pve2wan` | `v25.12.0` |
+这条线重点删除：
 
-GitHub Actions 主入口：
+- Docker / Dockerd / Containerd / Runc
+- Wi-Fi / `wpad` / `iw`
+- SmartDNS
+- OpenClash / HomeProxy / Nikki
+- Netdata / TTYD / Diskman / Nlbwmon
+- 文件共享 / NAS 类工具
+- 宿主机内核模块大包
 
-- [`.github/workflows/build-x86-64-openwrt.yml`](./.github/workflows/build-x86-64-openwrt.yml)
+## 4. 已保留的修复项
 
-典型流程：
+这条线已经把之前踩过的坑一并保留下来了：
 
-1. push 到 GitHub
-2. 进入仓库 `Actions`
-3. 选择对应分支的 workflow
-4. 选择 `source`
-5. 选择 `repo_branch`
-6. 等待编译完成并下载 artifacts / release 产物
+- 删除 `shadowsocksr-libev`，避开 SSR 哈希漂移老坑
+- 保留外部包 `Makefile` 路径修复
+- 保留 `zh-cn / zh_Hans` 翻译目录软链修复
+- 明确关闭 `PassWall2 Haproxy`，避开上游回退后的编译问题
+- 默认锁定 `v25.12.0`
+- 使用统一的 ccache 配置
+- 使用统一的新 release/tag 逻辑
 
----
+## 5. 产物说明
 
-## 4. 仓库边界
+主要产物是：
 
-### 保留在本 repo 的内容
-- GitHub Actions 编译流程
-- 各分支对应的编译脚本
-- 各分支对应的固件配置
-- `scripts/` 首启默认设置脚本
-- 与“能否成功编译 / 开箱默认行为”直接相关的改动
+- `immortalwrt-x86-64-generic-rootfs.tar.gz`
+- `immortalwrt-x86-64-generic-rootfs-ready-v4.tar.gz`
 
-### 不放进本 repo 的内容
-- N100 线上部署步骤
-- Docker 容器启动 / 重建实录
-- PassWall 节点、订阅、UUID
-- VPS IP、域名、设备 MAC
-- 路由器运行时快照、`nft` dump、`dhcp` dump
-- PVE 双 OP HA 规划
+其中：
 
-这条边界是硬规则：即使仓库是 private，也不把敏感运维内容放进来。
+- `rootfs.tar.gz` 是原始编译产物
+- `rootfs-ready-v4.tar.gz` 是当前这条线对外使用的正式命名
 
----
-
-## 5. 目录结构
+## 6. 目录结构
 
 ```text
 .
 ├── README.md
 ├── configs/
+│   └── x86-64-dockerrootfs.config
 ├── scripts/
+│   └── init-settings.sh
 ├── .github/
+│   └── workflows/
+│       └── build-x86-64-openwrt.yml
 ├── images/
-└── 编译脚本
+│   └── bg1.jpg
+└── dockerrootfs.sh
 ```
 
-不同分支会有不同的编译脚本与配置文件：
+## 7. 使用原则
 
-- `main` / `opdocker2wan`
-  - `immwrt.sh`
-  - `configs/x86-64-immwrt.config`
-- `pve2wan`
-  - `pve2wan.sh`
-  - `configs/x86-64-pve2wan.config`
-
----
-
-## 6. Release 约定
-
-- 每次编译都会生成独立 release
-- 不覆盖旧版本
-- tag 和名称会带上分支名、版本线和时间戳，方便回滚和对比
-- release 会自动附上“本次更新”内容
-
----
-
-## 7. 当前关键改动
-
-| 类别 | 作用 |
-|---|---|
-| ccache 修复 | 修正 cache path/key，让 GitHub Actions 的 ccache 真正能复用 |
-| release 统一 | 每次生成独立 release，并自动带“本次更新” |
-| netdata 兜底 | 给 25.12 的 netdata 补 fallback 配置，减少首启后不可用概率 |
-| 分支收口 | 各分支只保留自己负责的编译入口和 README 口径 |
-
----
-
-## 8. 常见编译风险
-
-| 现象 | 白话解释 | 处理方向 |
-|---|---|---|
-| 包不存在 / feed 404 | 上游包改名、删库或失效了 | 删掉失效包，换活着的源 |
-| PassWall 依赖冲突 | 同类代理组件在 25.12 上版本不一致 | 精简包选择，避免重复 / 冲突组合 |
-| `fuse-overlayfs` 相关失败 | 只选了上层包，底层依赖没一起带上 | 同时补 `kmod-fuse` + `libfuse3-3` |
-| WiFi 驱动缺失 | 固件能刷，但 AX101 可能起不来 | 把对应驱动编进固件，不要只靠事后装包 |
-| ccache 看起来没生效 | 首次 run 本来就可能 miss | 连续看第 2 次、第 3 次 run 才有意义 |
-
----
-
-## 9. 使用原则
-
-1. 先保证能稳定编出来，再谈功能继续加料
-2. 编译 repo 和运维档案分离
-3. 敏感信息不进 git
+1. 这条线只做容器 rootfs
+2. 不把宿主机功能混进来
+3. 不把 PVE 双 OP 思路混进来
 4. 改完本地先核对，再决定 push
-5. README 只讲编译 repo 本身，不承担运维手册职责
