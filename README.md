@@ -1,141 +1,64 @@
-# pve2wan
+# immwrt25.12-2wan
 
-这是 `immwrt25.12-2wan` 的 **PVE 双 OP 精简版** 分支。
+面向 `N100 / x86-64` 平台的 ImmortalWrt 固件编译仓库。
 
-它的目标不是把功能堆满，而是让 PVE 里的两台 OpenWrt VM 更容易稳定运行，重点围绕：
-
-- keepalived / VRRP / 双 VIP
-- PassWall / PassWall2
-- SmartDNS
-- 健康检查基础工具
-- 尽量轻量，减少虚拟机负担
+每条分支是一条独立的编译线，对应不同的使用场景。
 
 ---
 
-## 1. 这个分支做什么
+## 四条编译线
 
-`pve2wan` 专门服务于 PVE 双 OP 场景：
+| 分支 | 定位 | 编译入口 | 配置 |
+|---|---|---|---|
+| `main` | 主路由全家桶 | `immwrt.sh` | `configs/x86-64-immwrt.config` |
+| `pve2wan` | PVE 双 OP 精简版 | `pve2wan.sh` | `configs/x86-64-pve2wan.config` |
+| `opdocker2wan` | Docker 旁路由 + wan2 | `immwrt.sh` | `configs/x86-64-immwrt.config` |
+| `dockerrootfs` | Docker rootfs 最小基线 | `dockerrootfs.sh` | `configs/x86-64-dockerrootfs.config` |
 
-- 一台 VM 挂了，VIP 继续漂
-- 代理和普通出口可以按既定规则切换
-- 主要保留路由与 HA 必需组件
-- 不把 Docker、文件共享、监控大包再塞回去
+### main
+主路由完整全家桶：Wi‑Fi、Docker、PassWall/PassWall2/OpenClash、Samba/Alist、监控面板。适合物理机做主路由。
 
-这条线适合：
+### pve2wan
+PVE 双 OP 精简版：keepalived / VRRP 双 VIP、PassWall/PassWall2、SmartDNS。去掉 Docker、Wi‑Fi、文件共享。适合 PVE 里跑双 OpenWrt VM 做高可用。
 
-- PVE 里跑两台 OpenWrt VM
-- 做主备、fallback、VIP 漂移
-- 追求稳定和清晰，而不是功能最多
+### opdocker2wan
+主路由 + Docker 旁路由：Docker 容器走 `wan2`，保留 Wi‑Fi 和 PassWall/PassWall2。适合一台设备同时做主路由和旁路由。
 
----
-
-## 2. 编译输入
-
-本分支默认使用：
-
-- `source = pve2wan`
-- `repo_branch = v25.12.0`
-- workflow 选 `branch pve2wan`
-
-如果你在 GitHub Actions 里要跑这条线，记住只选这一套：
-
-1. workflow from: `branch pve2wan`
-2. source: `pve2wan`
-3. repo_branch: `v25.12.0`
+### dockerrootfs
+最小化旁路由容器 rootfs，给 `docker import` 用。不是宿主机固件，不包含 LuCI。
 
 ---
 
-## 3. 核心保留项
+## 编译
 
-这条线保留的重点是：
+所有分支默认锁定 `v25.12.0`。
 
-- `keepalived`
-- `keepalived-sync`
-- `luci-app-keepalived`
-- `PassWall`
-- `PassWall2`
-- `SmartDNS`
-- `jq`
-- `bash`
-- `bind-dig`
-- `coreutils-timeout`
-- `curl`
-- `ca-bundle`
-- `ip-full`
-- `tcping`
+GitHub Actions 入口：`.github/workflows/build-x86-64-openwrt.yml`
 
-这些东西的目标很明确：
-
-- 能做 VIP 漂移
-- 能检查 WAN / DNS / 代理连通性
-- 能尽量减少“进程还在但业务已经挂了”的假健康
+1. push 到 GitHub
+2. 进仓库 Actions，选对应分支的 workflow
+3. 选 `source` 和 `repo_branch`
+4. 等编译完成，下载 release
 
 ---
 
-## 4. 目录结构
+## 仓库结构
 
-```text
+```
 .
-├── README.md
-├── configs/
-│   └── x86-64-pve2wan.config
-├── scripts/
-│   ├── init-settings.sh
-│   ├── preset-adguard-core.sh
-│   ├── preset-clash-core.sh
-│   └── preset-terminal-tools.sh
-├── .github/
-│   └── workflows/
-│       └── build-x86-64-openwrt.yml
-├── images/
-│   └── bg1.jpg
-└── pve2wan.sh
+├── .github/workflows/    # Actions 编译流程
+├── configs/              # 各分支 .config
+├── scripts/              # 首启预设脚本
+├── images/               # 背景图
+├── immwrt.sh             # main / opdocker2wan 编译入口
+├── pve2wan.sh            # pve2wan 编译入口
+└── dockerrootfs.sh       # dockerrootfs 编译入口
 ```
 
-其中：
-
-- `pve2wan.sh` 是这条线自己的编译入口
-- `configs/x86-64-pve2wan.config` 是这条线自己的配置
-
 ---
 
-## 5. release 约定
+## 边界
 
-这条线的 release 约定和其他分支一致：
-
-- 每次编译生成独立 release
-- 不覆盖旧版本
-- tag 和名称都带时间戳，方便回滚和对比
-
----
-
-## 6. 与其他分支的关系
-
-`pve2wan` 只负责 PVE 双 OP 这条线，不承担其他分支的说明职责。
-
-如果你要看：
-
-- `main` 的主路由全家桶总览
-- `opdocker2wan` 的 Docker 旁路由 + `wan2`
-
-请切到对应分支看各自 README。
-
----
-
-## 7. 常见编译风险
-
-| 现象 | 白话解释 | 处理方向 |
-|---|---|---|
-| 包不存在 / feed 404 | 上游包改名、删库或失效了 | 删掉失效包，换活着的源 |
-| keepalived 相关包冲突 | 25.12 上某些依赖版本不一致 | 只保留真正需要的 HA 组件 |
-| 健康检查脚本不稳定 | timeout / dig / curl 没配齐 | 把基础探活工具补齐 |
-| ccache 看起来没生效 | 首次 run 本来就可能 miss | 连续看第 2 次、第 3 次 run 才有意义 |
-
----
-
-## 8. 使用原则
-
-1. 先保证能稳定编出来，再谈功能继续加料
-2. 这条线只保留 PVE 双 OP 必需内容
-3. 敏感信息不进 git
-4. 改完本地先核对，再决定 push
+- 仓库只管编译和默认行为，不放线上部署、节点、IP、快照
+- 运维资料在外部（`star/docs/servers/`），不进这个 repo
+- 每条分支的详细说明看各自分支的 README
