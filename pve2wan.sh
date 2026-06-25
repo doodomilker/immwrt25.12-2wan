@@ -165,6 +165,7 @@ clone_source_code() {
   git clone -q -b "$REPO_BRANCH" --single-branch "$REPO_URL" openwrt
   ln -sf /workdir/openwrt "$GITHUB_WORKSPACE/openwrt"
   cd openwrt
+  echo "src-git linkease https://github.com/linkease/istore.git;main" >> feeds.conf.default
   export OPENWRT_PATH="$PWD"
   echo "OPENWRT_PATH=$OPENWRT_PATH" >> "$GITHUB_ENV"
 }
